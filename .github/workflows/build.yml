@@ -16,8 +16,14 @@ jobs:
       - name: Checkout BlenderMobile
         uses: actions/checkout@v4
         with:
+          # CRITICAL FIX: Enable Git LFS to pull the missing blend files
+          lfs: true
           submodules: recursive
           fetch-depth: 0
+
+      - name: Checkout LFS Objects
+        # This ensures the large files are actually pulled into the workspace
+        run: git lfs pull
 
       - name: Install Build Tools
         run: |
@@ -44,7 +50,6 @@ jobs:
         if: matrix.platform == 'ios'
         run: |
           mkdir build_ios && cd build_ios
-          # Leveraging that 0.7% Objective-C++ for Metal support
           cmake .. -G Ninja \
             -DCMAKE_SYSTEM_NAME=iOS \
             -DCMAKE_OSX_ARCHITECTURES=arm64 \
@@ -55,7 +60,6 @@ jobs:
       - name: Stage Production Artifacts
         run: |
           mkdir -p staged_output
-          # Targeting the compiled binaries (EXE/IPA/Libs)
           find . -type f \( -name "*.apk" -o -name "*.ipa" -o -name "blender" -o -name "*.so" -o -name "*.a" \) -exec cp {} ../staged_output/ \;
 
       - name: Upload Artifacts
@@ -84,6 +88,5 @@ jobs:
           automatic_release_tag: "production"
           prerelease: false
           title: "BlenderMobile"
-          # Only compiled assets, no source code files
           files: |
             release-assets/*
