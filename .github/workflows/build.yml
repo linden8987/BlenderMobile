@@ -27,23 +27,25 @@ jobs:
       - name: Build for Android
         if: matrix.platform == 'android'
         run: |
+          # Install target and NDK helper
           rustup target add aarch64-linux-android
           cargo install cargo-ndk
-          # Building the core Blender engine for Android ARM64
+          # Build Blender core for Android ARM64
           cargo ndk -t arm64-v8a build --release 2>&1 | tee build_android.log
 
       - name: Build for iOS
         if: matrix.platform == 'ios'
         run: |
+          # Install iOS target
           rustup target add aarch64-apple-ios
-          # Building the core Blender engine for iOS (M1/A-series support)
+          # Build Blender core for A-series/M1 hardware
           cargo build --release --target aarch64-apple-ios 2>&1 | tee build_ios.log
 
       - name: Stage Mobile Artifacts
         shell: bash
         run: |
           mkdir -p staged_output
-          # Hunting for the compiled binaries/libraries in the target folder
+          # Collect libraries and app files, excluding source code
           find target/ -type f \( -name "*.apk" -o -name "*.ipa" -o -name "*.a" -o -name "*.so" \) -exec cp {} staged_output/ \;
 
       - name: Upload Artifacts
@@ -65,15 +67,14 @@ jobs:
           merge-multiple: true
           path: release-assets
 
-      - name: Create Official Production Release
+      - name: Create BlenderMobile Production Release
         uses: marvinpinto/action-automatic-releases@latest
         with:
           repo_token: "${{ secrets.GITHUB_TOKEN }}"
           automatic_release_tag: "production"
           prerelease: false
           title: "BlenderMobile"
-          # Pure binary release: No .rs files or logs
+          # Regular title, no snippets, no .rs source code
           files: |
             release-assets/*
             !release-assets/*.log
-
