@@ -1,1 +1,79 @@
+name: Build BlenderMobile
+
+on:
+  push:
+    branches: [ "main" ]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-mobile:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [android, ios]
+    runs-on: ${{ (matrix.platform == 'ios') && 'macos-latest' || 'ubuntu-latest' }}
+    steps:
+      - name: Checkout BlenderMobile
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Rust Toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build for Android
+        if: matrix.platform == 'android'
+        run: |
+          rustup target add aarch64-linux-android
+          cargo install cargo-ndk
+          # Building the core Blender engine for Android ARM64
+          cargo ndk -t arm64-v8a build --release 2>&1 | tee build_android.log
+
+      - name: Build for iOS
+        if: matrix.platform == 'ios'
+        run: |
+          rustup target add aarch64-apple-ios
+          # Building the core Blender engine for iOS (M1/A-series support)
+          cargo build --release --target aarch64-apple-ios 2>&1 | tee build_ios.log
+
+      - name: Stage Mobile Artifacts
+        shell: bash
+        run: |
+          mkdir -p staged_output
+          # Hunting for the compiled binaries/libraries in the target folder
+          find target/ -type f \( -name "*.apk" -o -name "*.ipa" -o -name "*.a" -o -name "*.so" \) -exec cp {} staged_output/ \;
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: blender-${{ matrix.platform }}
+          path: staged_output/
+
+  publish-release:
+    needs: build-mobile
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download All Mobile Builds
+        uses: actions/download-artifact@v4
+        with:
+          pattern: blender-*
+          merge-multiple: true
+          path: release-assets
+
+      - name: Create Official Production Release
+        uses: marvinpinto/action-automatic-releases@latest
+        with:
+          repo_token: "${{ secrets.GITHUB_TOKEN }}"
+          automatic_release_tag: "production"
+          prerelease: false
+          title: "BlenderMobile"
+          # Pure binary release: No .rs files or logs
+          files: |
+            release-assets/*
+            !release-assets/*.log
 
